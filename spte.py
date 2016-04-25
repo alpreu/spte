@@ -11,7 +11,8 @@ regex = re.compile("[1-9][0-9]*\n"
 
 def main(argv):
     if "--help" in argv:
-        print("pass file path or containing folder as arguments")
+        print("Usage: spte [FILE/FOLDER] [OPTION]")
+        print(" -rs \t remove styletags")
     else:
         inpath = argv[1]
         splitpath = os.path.splitext(inpath)
