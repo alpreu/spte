@@ -1,19 +1,23 @@
+# -*- coding: utf-8 -*-
 import re
 import shutil
 import sys
 import os
 import glob
+import chardet
+import codecs
 
-srt_structure = re.compile("[1-9][0-9]*\n"
+srt_structure = re.compile("[1-9][0-9]*\r?\n"
     "[0-9][0-9]:[0-5][0-9]:[0-5][0-9],[0-9][0-9]?[0-9]?"
-    " --> [0-9][0-9]:[0-5][0-9]:[0-5][0-9],[0-9][0-9]?[0-9]?\n", re.MULTILINE)
+    " --> [0-9][0-9]:[0-5][0-9]:[0-5][0-9],[0-9][0-9]?[0-9]?\r?\n", re.MULTILINE)
 opening_styletag = re.compile("<[A-Za-z]+>")
 closing_styletag = re.compile("<\/[A-Za-z]+>")
 
 
 def main(argv):
-    if "--help" in argv or (len(argv) == 3 and not argv[2] == "-rs"):
-        print("Usage: spte [FILE/FOLDER] [OPTION]")
+    if "--help" in argv:
+        print("Usage: spte.py [FILE/FOLDER] [OPTIONS]")
+        print("Options:")
         print(" -rs \t remove styletags")
     else:
         inpath = argv[1]
@@ -47,30 +51,35 @@ def main(argv):
 def extract_text(filedata):
     outpath = filedata[0]
     copyfile = filedata[1]
-    open(outpath, "w").write(srt_structure.sub("", copyfile))
+    file_encoding = filedata[2]
+    codecs.open(outpath, "w", file_encoding).write(srt_structure.sub("", copyfile))
     print("extracted " + outpath)
 
 
 def remove_styletags(filedata):
     outpath = filedata[0]
     copyfile = filedata[1]
-    open(outpath, "w").write(opening_styletag.sub("", copyfile))
-    copyfile = open(outpath, "r+").read()
-    open(outpath, "w").write(closing_styletag.sub("", copyfile))
-    copyfile = open(outpath, "r+").read()
-    return (outpath, copyfile)
+    file_encoding = filedata[2]
+    matches = opening_styletag.findall(copyfile)
+    print(matches)
+    codecs.open(outpath, "w", file_encoding).write(opening_styletag.sub("", copyfile))
+    copyfile = codecs.open(outpath, "r+", file_encoding).read()
+    matches = closing_styletag.findall(copyfile)
+    print(matches)
+    codecs.open(outpath, "w", file_encoding).write(closing_styletag.sub("", copyfile))
+    copyfile = codecs.open(outpath, "r+", file_encoding).read()
+    return (outpath, copyfile, file_encoding)
 
-
-#todo: better program flow
-#todo: only import the stuff used
-#todo: improve input handling of flags
 
 def create_working_copy(inpath):
     split = os.path.splitext(inpath)
     outpath = split[0] + ".txt"
     shutil.copyfile(inpath, outpath)
-    copyfile = open(outpath, "r+").read()
-    return (outpath, copyfile)
+    rawdata = open(outpath, "rb").read()
+    file_encoding = chardet.detect(rawdata)["encoding"]
+    copyfile = codecs.open(outpath, "r+", file_encoding).read()
+    return (outpath, copyfile, file_encoding)
+
 
 if __name__ == "__main__":
     main(sys.argv)
