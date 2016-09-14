@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import re
-import shutil
 import sys
 import os
 import glob
@@ -9,84 +8,82 @@ import codecs
 import argparse
 
 
-srt_structure = re.compile("[1-9][0-9]*\r?\n"
+srt_structure = re.compile(
+    "[1-9][0-9]*\r?\n"
     "[0-9][0-9]:[0-5][0-9]:[0-5][0-9],[0-9][0-9]?[0-9]?"
-    " --> [0-9][0-9]:[0-5][0-9]:[0-5][0-9],[0-9][0-9]?[0-9]?\r?\n", re.MULTILINE)
+    " --> "
+    "[0-9][0-9]:[0-5][0-9]:[0-5][0-9],[0-9][0-9]?[0-9]?\r?\n",
+    re.MULTILINE)
 opening_styletag = re.compile("<[A-Za-z]+>")
 closing_styletag = re.compile("<\/[A-Za-z]+>")
 blank_line = re.compile("(^|\n)\s*(\n|$)")
 
 
 parser = argparse.ArgumentParser(description="Extract meaningful plaintext from .srt files.")
-parser.add_argument("inpath", metavar="FILE...", nargs="?",  type=str, default=os.getcwd(), help="file or directory to process")
-parser.add_argument("-rs", "--removestyle", help="remove styletags", dest="style_should_be_removed", action="store_true")
-parser.add_argument("-rb", "--removeblanks", help="remove blank lines", dest="blanks_should_be_removed", action="store_true")
+parser.add_argument("inpath", metavar="FILE...", help="file or directory to process", nargs="?", type=str, default=os.getcwd())
+parser.add_argument("-s", "--removestyle", help="remove styletags", dest="style_should_be_removed", action="store_true")
+parser.add_argument("-b", "--removeblanks", help="remove blank lines", dest="blanks_should_be_removed", action="store_true")
 
 
 def main(argv):
-    args = parser.parse_args() # parse command line arguments
-    if os.path.isfile(args.inpath): # file was given
+    args = parser.parse_args()  # parse command line arguments
+    files = []
+    if os.path.isfile(args.inpath):  # file was given
         file_extension = os.path.splitext(args.inpath)[1]
         if file_extension == ".srt":
-            filedata = create_working_copy(args.inpath)
-            filedata = extract_text(filedata)
-            if args.style_should_be_removed:
-                filedata = remove_styletags(filedata)
-            if args.blanks_should_be_removed:
-                filedata = remove_blank_lines(filedata)
-    elif os.path.isdir(args.inpath): # directory was given
-        files = glob.glob(args.inpath + "/*srt")
-        if files:
-            for f in files:
-                filedata = create_working_copy(f)
-                filedata = extract_text(filedata)
-                if args.style_should_be_removed:
-                    filedata = remove_styletags(filedata)
-                if args.blanks_should_be_removed:
-                    filedata = remove_blank_lines(filedata)
-        else:
-            print("No .srt files found in directory")
+            files = [args.inpath]
+    elif os.path.isdir(args.inpath):  # directory was given
+        files = glob.glob(args.inpath + "/*.srt")
     else:
         print("Error reading filepath")
+    if files:
+        process(files, args)
+    else:
+        print("No .srt files found")
 
 
-def extract_text(filedata):
-    outpath = filedata[0]
-    copyfile = filedata[1]
-    file_encoding = filedata[2]
-    codecs.open(outpath, "w", file_encoding).write(srt_structure.sub("", copyfile))
-    copyfile = codecs.open(outpath, "r+", file_encoding).read()
-    return (outpath, copyfile, file_encoding)
+def process(files, args):
+    for f in files:
+        encoding = get_file_encoding(f)
+        outputfile = create_output_file(f, encoding)
+        original_content = get_file_content(f, encoding)
+        modified_content = extract_text(original_content)
+        if args.style_should_be_removed:
+            modified_content = remove_styletags(modified_content)
+        if args.blanks_should_be_removed:
+            modified_content = remove_blank_lines(modified_content)
+        outputfile.write(modified_content)
+        outputfile.close()
+        print("Processed " + os.path.split(f)[1])
 
 
-def remove_styletags(filedata):
-    outpath = filedata[0]
-    copyfile = filedata[1]
-    file_encoding = filedata[2]
-    codecs.open(outpath, "w", file_encoding).write(opening_styletag.sub("", copyfile))
-    copyfile = codecs.open(outpath, "r+", file_encoding).read()
-    codecs.open(outpath, "w", file_encoding).write(closing_styletag.sub("", copyfile))
-    copyfile = codecs.open(outpath, "r+", file_encoding).read()
-    return (outpath, copyfile, file_encoding)
+def get_file_content(path, encoding):
+    return codecs.open(path, "r", encoding).read()
 
 
-def remove_blank_lines(filedata):
-    outpath = filedata[0]
-    copyfile = filedata[1]
-    file_encoding = filedata[2]
-    codecs.open(outpath, "w", file_encoding).write(blank_line.sub("", copyfile))
-    copyfile = codecs.open(outpath, "r+", file_encoding).read()
-    return (outpath, copyfile, file_encoding)
+def extract_text(content):
+    return srt_structure.sub("", content)
 
 
-def create_working_copy(inpath):
+def remove_styletags(content):
+    content = opening_styletag.sub("", content)
+    content = closing_styletag.sub("", content)
+    return content
+
+
+def remove_blank_lines(content):
+    return blank_line.sub("", content)
+
+
+def create_output_file(inpath, encoding):
     split = os.path.splitext(inpath)
     outpath = split[0] + ".txt"
-    shutil.copyfile(inpath, outpath)
-    rawdata = open(outpath, "rb").read()
-    file_encoding = chardet.detect(rawdata)["encoding"]
-    copyfile = codecs.open(outpath, "r+", file_encoding).read()
-    return (outpath, copyfile, file_encoding)
+    return codecs.open(outpath, "w", encoding)
+
+
+def get_file_encoding(path):
+    rawdata = open(path, "rb").read()  # open in bytes-mode
+    return chardet.detect(rawdata)["encoding"]
 
 
 if __name__ == "__main__":
