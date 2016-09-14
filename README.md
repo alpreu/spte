@@ -3,7 +3,7 @@ A command line tool to extract meaningful plaintext from .srt subtitle files, wr
 
 ## Usage
 Extract text for all .srt files in the current directory  
-```>python spte.py``
+```>python spte.py```
 
 Extract text for all .srt files in mypath  
 ```>python spte.py ~/mypath/```
